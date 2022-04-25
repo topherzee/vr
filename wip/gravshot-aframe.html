@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>GRAVSHOT</title>
+    <meta name="description" content="Tracked Controls – A-Frame">
+
+    <script src="https://aframe.io/releases/1.2.0/aframe.min.js"></script>
+    <!-- <script src="components/ground.js"></script> -->
+    <!-- <script src="shaders/skyGradient.js"></script> -->
+
+  <script type="module">
+
+//HELP FOR THE PLANET GRAVITY:
+//https://codepen.io/Grilly86/pen/BapwXz
+
+// GAME LOOP
+const TICKS_PER_FRAME = 33; //1000
+
+const VELOCITY_ON = false;
+
+const FADEOUT_MS = 100;
+
+const MAX_PARTICLES = 1;
+const MAX_FADES = 10;
+const VEL_FACTOR = 10;
+
+var options = {
+  G: 0.003,
+  TRAIL_LENGTH: 50,
+  NUM_MOTES: 100
+} 
+
+
+
+const ENABLE_BEATS = false;
+const GREY = 0;
+const WHITE = 1;
+const BLACK = 2;
+const YELLOW = 3;
+const GREEN = 4
+const BLUE = 5;
+const RED = 6; 
+const PINK = 7; 
+const COLORS = ["grey","white","black","yellow","green","blue","red","#FF69B4"];//,"pink"
+const SIZES = [0.001, 0.005, 0.02, 0.05, 0.1, 0.2] //these get trippled.
+
+const L = 0; //LEFT
+const R = 1; //RIGHT
+
+// var gColorIndex = [4,5];
+var gColorIndex = [3,3];
+var gColorSkyIndex = 2;
+var gColorGroundIndex = 2;
+
+var gSizeIndex = [1,0];
+var gDrawing= [false, false];
+
+var gTriggerDown = [false,false];
+var gTriggerDownPrev = [false,false];
+var gTriggerTouch = [false, false];
+var gGripDown = [false,false];
+var gAX_Down = [false,false];
+var gBY_Down = [false,false];
+
+var gThumbSpent = [false, false];
+
+
+var gIsMouseDown = false;
+
+
+//DRAWING PARTS OF LINE.
+const clientId="K" + (Math.random()*1000).toFixed(0)
+console.log(`My Client ID ${clientId}`)
+
+var users={};
+initUser(clientId)
+
+function initUser(CID){
+  console.log(`initUser ${CID}`)
+  users[CID] = {};
+
+  users[CID].motes = [];
+  users[CID].orbs = [];
+
+}
+
+
+var gRecordState =  "NOTHING"; //"RECORDING", "PLAYING", "NOTHING"
+
+const params = new URLSearchParams(window.location.search)
+if (params.has('PLAY')){
+  gRecordState = "PLAYING"
+}
+
+
+const RECORD_MAX = 400;
+
+var aRecord = [];
+aRecord[L] = [];
+aRecord[R] = [];
+var iRecord = 0;
+
+var MAX_POS = 3;
+
+var aPos = []
+aPos[L] = [];
+aPos[R] = [];
+
+var aPosCursor = []
+
+var velCursor = {"x":0,"y":0,"z":0};
+
+var gVel = [];
+gVel[L] = {"x":0,"y":0,"z":0};
+gVel[R] = {"x":0,"y":0,"z":0};
+
+
+var gLastPos1 = [];
+gLastPos1[L] = new THREE.Vector3();
+gLastPos1[R] = new THREE.Vector3();
+
+var gLastPos2 = [];
+gLastPos2[L] = new THREE.Vector3();
+gLastPos2[R] = new THREE.Vector3();
+
+
+window.onload = function() {
+  
+  console.log("STARTUP!")
+
+  fetch("./recordings/glowsticks-1.json")
+  .then(response => {
+    return response.json();
+  })
+  .then(data => {
+    console.log(data)
+  
+    if (gRecordState === "PLAYING"){
+      //LOAD FROM LOCAL STORAGE
+      aRecord = data;
+    }
+
+    //FIREBASE catch events. 
+
+    console.log("START game loop")
+
+    var myVar = setInterval(gameLoop, TICKS_PER_FRAME);
+
+    initLauncher()
+    initMotes()
+    initOrbs()
+
+    
+  });
+  console.log("STARTUP Complete")
+};
+
+function initLauncher(){
+   launcherPos = new THREE.Vector3(0.5, 1.5, 1);
+ launcherDir = new THREE.Vector3(1,0,0).setLength(0.1);
+
+  launcherEl = document.createElement('a-cylinder');
+  //moteEl.setAttribute('radius', 0.05);
+  launcherEl.setAttribute('radius', 0.05);
+  //launcherEl.setAttribute('geometry','radius-top:0.10; radius-bottom:0.50;');
+  //launcherEl.setAttribute('geometry.radiusBottom', 0.01);
+  launcherEl.setAttribute('length', 0.10);
+  launcherEl.setAttribute('material','side: double; transparent: false;')
+  launcherEl.setAttribute('color', `rgb(0,255,0)`);
+  launcherEl.setAttribute('position', launcherPos);
+  var sceneEl = document.querySelector('a-scene');
+  //sceneEl.appendChild(launcherEl);
+
+}
+function initMotes(){
+  //debugger;
+  var user = users[clientId];
+  //user.motes.forEach(mote => {
+
+  for (var i=0; i< options.NUM_MOTES; i++){
+      var mote = {};
+      initMote(mote)
+      user.motes.push(mote)
+  }
+
+}
+
+function initOrbs(){
+  //debugger;
+  var user = users[clientId];
+
+      var orb = {};
+      initOrb(orb,-1, 2, -3)
+      user.orbs.push(orb)
+
+      var orb2 = {};
+      initOrb(orb2,1, 2, -4)
+      user.orbs.push(orb2)
+ 
+
+}
+
+
+function initOrb(orb, x, y, z){
+
+  orb.mass = 10; //kg.
+  orb.pos = new THREE.Vector3(x, y, z);
+  orb.quatDelta = null;
+
+  var orbEl = document.createElement('a-sphere');
+  orbEl.setAttribute('material','side: double; transparent: false;')
+  orbEl.setAttribute('color', "rgb(255,255,0)");
+  orbEl.setAttribute('radius', 0.5);
+  orbEl.setAttribute('position', orb.pos);
+  //orbEl.object3D.position.set(-1, 2, -3);
+
+  var sceneEl = document.querySelector('a-scene');
+  sceneEl.appendChild(orbEl);
+  //debugger;
+}
+
+var launcherPos 
+var launcherDir
+
+var launcherEl 
+
+
+function initMote(mote){
+  mote.mass = 0.1;
+  mote.trails = [];
+  mote.iTrail = 0;
+  mote.pos = new THREE.Vector3();
+  mote.quatDelta = null;
+
+  var SPREAD = 0.1
+  // mote.pos.x = 0.5 + (Math.random()*SPREAD) - SPREAD/2
+  // mote.pos.y = 1 + (Math.random()*SPREAD) - SPREAD/2
+  // mote.pos.z = -1 + (Math.random()*SPREAD) - SPREAD/2
+
+  mote.pos.x = 0.5 
+  mote.pos.y = 1 
+  mote.pos.z = -1 
+
+
+  //mote.vel = new THREE.Vector3(0.01, 0, 0);
+  //In every direction.
+  mote.vel = new THREE.Vector3().random().subScalar(0.5).setLength(0.1);
+  //angle towards 1 direction.
+  mote.vel.lerp(launcherDir, 0.7).setLength(0.005)
+
+  //mote.vel = 
+
+  mote.accel = new THREE.Vector3();
+  
+  const r = (Math.random()*255).toFixed(0);
+  const g = (Math.random()*255).toFixed(0);
+  const b = (Math.random()*255).toFixed(0);
+  mote.color = `rgb(${r},${g},${b})`;
+  
+  //const clientId="K" + (Math.random()*1000).toFixed(0)
+
+  //var moteEl = document.createElement('a-cube');
+  // var moteEl = document.createElement('a-sphere');
+  // //moteEl.setAttribute('radius', 0.05);
+  // moteEl.setAttribute('radius', 0.00);
+  // moteEl.setAttribute('material','side: double; transparent: false;')
+  // moteEl.setAttribute('color', mote.color);
+  // moteEl.setAttribute('position', mote.pos);
+
+  // mote.moteEl = moteEl;
+  // var sceneEl = document.querySelector('a-scene');
+  // sceneEl.appendChild(moteEl);
+ 
+}
+
+
+
+function initTrail(trail, mote){
+trail.pos = new THREE.Vector3();
+
+var trailEl = document.createElement('a-entity');
+trailEl.setAttribute("line","start: 0 0 0; end: 0 0.01 0; color:" + mote.color);
+
+// var trailEl = document.createElement('a-box');
+// trailEl.setAttribute('radius', 0.005);
+// trailEl.setAttribute('depth', 0.005);
+// trailEl.setAttribute('height', 0.005);
+// trailEl.setAttribute('width', 0.005);
+// trailEl.setAttribute('material','side: double; transparent: false;')
+// trailEl.setAttribute('color', "rgb(0,0,255)");
+
+// Traiangle
+// var trailEl = makeTrailEl(trail, mote)
+
+
+trail.trailEl = trailEl;
+
+var sceneEl = document.querySelector('a-scene');
+sceneEl.appendChild(trailEl);
+}
+
+// function makeTrailEl(trail, mote){
+// var trailEl = document.createElement('a-triangle');
+// trailEl.setAttribute('material','side: double; transparent: false;')
+// trailEl.setAttribute('color', mote.color);
+// setGeometry(trailEl, mote.pos)
+// return trailEl
+// }
+
+// function setGeometry(trailEl, pos){
+// trailEl.setAttribute('geometry', {
+//     primitive: 'triangle',
+//     vertexA: pos,
+//     vertexB: new THREE.Vector3().copy(pos).add(new THREE.Vector3(0, 0.1, 0)),
+//     vertexC: new THREE.Vector3().copy(pos).add(new THREE.Vector3(0, 0, 0.1))
+// });
+// }
+
+
+
+var loopCount = 0;
+function gameLoop(){
+  loopCount++;
+  if (loopCount > 100){
+    return
+  }
+
+  animateMotes();
+
+  // gameLoop_Hand(L,"left");
+  // gameLoop_Hand(R,"right");
+
+  if (gRecordState === "RECORDING"){
+      if (aRecord[L].length === (RECORD_MAX-1)){
+      //console.log(JSON.stringify(aRecord[L],null,2));
+      console.log("RECORDING SAVED.")
+      localStorage.setItem('vr-recording-2', JSON.stringify(aRecord,null,2));
+    }
+  }
+}
+
+
+function animateMotes(){
+
+  var d = new THREE.Vector3();
+
+  var user = users[clientId];
+  user.motes.forEach((mote, index) => {
+    
+    mote.vel.add(mote.accel);
+    mote.pos.add(mote.vel);
+    mote.accel.multiplyScalar(0)
+   // mote.moteEl.setAttribute('position', mote.pos);
+
+
+    // Update Trail
+    //if (index==0){ debugger}
+    var trail = mote.trails[mote.iTrail]
+    if (!trail){
+      trail = {}
+      initTrail(trail,mote)
+      mote.trails.push(trail)
+      //if (index==0){console.log("no trail")}
+    }else{
+      //if (index==0){console.log("yes trail")}
+    }
+
+    //LINE
+    trail.pos.copy(mote.pos)
+    trail.trailEl.setAttribute('position', trail.pos);
+    
+      const i = (mote.iTrail == 0) ? (options.TRAIL_LENGTH-1) : mote.iTrail-1
+    if (mote.trails[i]){
+      d.copy(mote.trails[i].pos)
+      d.sub(trail.pos)
+      trail.trailEl.setAttribute("line",`start: 0 0 0; end: ${d.x} ${d.y} ${d.z}; color: ${mote.color}`);
+    }
+
+
+    mote.iTrail = (mote.iTrail+1) % options.TRAIL_LENGTH;
+
+    // Apply forces
+    user.orbs.forEach(orb => {
+
+      var distance = mote.pos.distanceTo(orb.pos);
+      var force = new THREE.Vector3().subVectors(mote.pos, orb.pos);         // Calculate direction of force
+      var d = force.lengthSq();
+      if (d<0) d*=-1;
+      force = force.normalize();
+      var strength = - (options.G * orb.mass * mote.mass) / (d);      // Calculate gravitional force magnitude
+      force = force.multiplyScalar(strength);                             // Get force vector --> magnitude * direction
+      
+      var f = force.divideScalar(mote.mass);
+      mote.accel.add(f);
+
+    })
+  })
+
+}
+
+
+
+
+console.log("START - end of code 2")    
+</script>
+</head>
+
+<body>
+  <a-scene
+  id="sky"
+  
+  
+
+    background="color: black"
+    >
+    <!-- avatar-recorder avatar-replayer -->
+
+      <!-- renderer="colorManagement: true;" -->
+
+    <a-entity id="sky2" 
+    geometry="primitive: sphere; radius: 65;"
+    material="colorTop: #353449; colorBottom: #BC483E; side: back"></a-entity>
+  
+
+    <!-- Hands -->
+
+    <!-- <a-entity  oculus-touch-controls="hand: left; model:true" id="hand-left" >
+      <a-entity id="glowstick-left-tip" position="0 0.15 -0.5" rotation="0 0 0" material="visible:true; shader: flat; color: green;" geometry="primitive: box; height: 0.03; width: 0.03; depth: 0.03"></a-entity>
+      <a-entity id="origin-left" position="0 0 0" rotation="40 0 0" material="visible:true; shader: flat; color: grey;" geometry="primitive: box; height: 0.03; width: 0.03; depth: 0.03"></a-entity>
+    </a-entity>
+   
+    <a-entity  oculus-touch-controls="hand: right; model:true" id="hand-right"  >
+      <a-entity id="glowstick-right-tip" position="0 0.15 -0.5" rotation="0 0 0" material="visible:true; shader:flat; color: yellow;" geometry="primitive: box; height: 0.03; width: 0.03; depth: 0.03"></a-entity>
+      <a-entity id="origin-right" position="0 0 0" rotation="40 0 0" material="visible:true; shader: flat; color: grey;" geometry="primitive: box; height: 0.03; width: 0.03; depth: 0.03"></a-entity>
+    </a-entity> -->
+
+      <a-entity id="quat-left" position="0 1 -1" material="visible:true; color: red;" geometry="primitive: box; height: 0.03; width: 0.03; depth: 0.03"></a-entity>
+    
+      <a-entity id="quat-right" position="0 1 -1" material="visible:true; color: blue;" geometry="primitive: box; height: 0.03; width: 0.03; depth: 0.03"></a-entity>
+
+    <a-entity position="0 0 -0.5">
+      
+      </a-entity>
+
+    <a-entity position="0 1.6 2" camera look-controls wasd-controls>
+
+    </a-entity>
+
+  </a-scene>
+</body>
+</html>

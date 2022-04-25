@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>Tracked Controls</title>
+    <meta name="description" content="Tracked Controls – A-Frame">
+    <!-- <script src="../../../dist/aframe-master.js"></script> -->
+    <script src="https://aframe.io/releases/1.2.0/aframe.min.js"></script>
+  
+    <script src="components/aabb-collider.js"></script>
+    <script src="components/grab.js"></script>
+    <script src="components/ground.js"></script>
+    <script src="shaders/skyGradient.js"></script>
+    <script src="https://unpkg.com/aframe-event-set-component@4.0.1/dist/aframe-event-set-component.min.js"></script>
+  
+  <script>
+console.log("STARTUP 2!")
+
+    function createTrail(newPos){
+
+      var sceneEl = document.querySelector('a-scene');
+
+      var markerEl = document.querySelector('#marker');
+      markerEl.setAttribute('visible', !markerEl.getAttribute('visible'));
+
+
+      var newEl = document.createElement('a-box');
+      newEl.setAttribute('color', 'blue');
+      sceneEl.appendChild(newEl);
+
+      //material="color: #EF2DFF;"
+      
+      // position.y = 0.5;
+      // position.x = 0
+      // position.z = 0
+      newEl.setAttribute('position', newPos);
+      //newEl.setAttribute('scale',0.1)
+      newEl.object3D.scale.set(0.3,0.3,0.3);
+      //newEl.setAttribute('geometry',="primitive: box; height: 0.30; width: 0.30; depth: 0.30"
+
+      newEl.setAttribute('animation__shrink', {
+        property: 'scale',
+        dur: 3000,
+        easing: 'easeOutQuad',
+        to: '0 0 0'
+      })
+    }
+
+
+    AFRAME.registerComponent('x-button-listener', {
+      init: function () {
+        var el = this.el;
+        el.addEventListener('xbuttondown', function (evt) {
+          
+          //el.setAttribute('visible', !el.getAttribute('visible'));
+          var newPos = el.object3D.getWorldPosition();
+          createTrail(newPos)
+        });
+      }
+    });
+
+    var gIsMouseDown = false;
+
+    var myVar = setInterval(function(){
+      var cursor = document.querySelector('#a-cursor'); 
+      
+      if (cursor.components.raycaster.intersections.length == 0){
+      //if (!cursor.components.intersectedEl) { 
+        //console.log("no intersect");
+        return; 
+      }
+      var intersection = cursor.components.raycaster.intersections[0];
+      //var intersection = cursor.components.raycaster.getIntersection(cursor.components.intersectedEl);
+      var intersectionPosition = intersection.point;
+      //console.log("inter: " + intersectionPosition);
+
+      createTrail(intersectionPosition)
+    }, 100);
+
+
+    // Component to change to a sequential color on click.
+    AFRAME.registerComponent('cursor-listener', {
+      init: function () {
+        var lastIndex = -1;
+        var COLORS = ['red', 'green', 'blue'];
+        this.el.addEventListener('click', function (evt) {
+          // debugger;
+          //console.log('cursor!')
+
+          //lastIndex = (lastIndex + 1) % COLORS.length;
+          //this.setAttribute('material', 'color', COLORS[lastIndex]);
+          console.log('I was clicked at: ', evt.detail.intersection.point);
+
+          var newPos = evt.detail.intersection.point;
+          
+          //createTrail(newPos)
+
+        });
+
+        this.el.addEventListener('mousedown', function (evt) {
+          gIsMouseDown = true;
+        });
+        this.el.addEventListener('mouseup', function (evt) {
+          gIsMouseDown = false;
+        });
+
+      }
+    });
+  </script>
+
+<!-- event-set__grab="material.color: #FFEF4F"
+                 event-set__grabend="material.color: #F2E646"
+                 event-set__hit="material.color: #F2E646"
+                 event-set__hitend="material.color: #EF2D5E"
+                 event-set__mousedown="material.color: #FFEF4F"
+                 event-set__mouseenter="material.color: #F2E646"
+                 event-set__mouseleave="material.color: #EF2D5E"
+                 event-set__mouseup="material.color: #F2E646" -->
+
+  </head>
+  <body>
+    <a-scene
+      renderer="colorManagement: true;"
+      cursor="rayOrigin: mouse"
+      raycaster="objects: [cube]" fog="color: #bc483e; near: 0; far: 65;">
+      <a-assets>
+        <a-mixin id="cube"
+                cursor-listener
+                 geometry="primitive: box; height: 0.30; width: 0.30; depth: 0.30"
+                 material="color: #EF2DFF;"></a-mixin>
+        <a-assets>
+           <a-asset-item id="ground" src="https://cdn.aframe.io/examples/tracked-controls/ground.glb"></a-asset-item>
+        </a-assets>
+      </a-assets>
+
+      <!-- A-Frame cubes -->
+      <a-entity position="0 0 -0.5">
+
+        <a-entity oculus-touch-controls x-button-listener
+        class="cube" mixin="cube" position="0.30 1.65 0"></a-entity>
+
+
+        <a-entity id="marker" cursor-listener class="cube" mixin="cube" position="0 1.95 0"></a-entity>
+        <a-entity class="cube" material="color: #999999;" mixin="cube" position="-0.30 1.65 0"></a-entity>
+
+        <a-entity class="cube" mixin="cube" position="0.60 1.35 0"></a-entity>
+        <a-entity class="cube" mixin="cube" position="0.60 1.05 0"></a-entity>
+        <a-entity class="cube" mixin="cube" position="0.60 0.75 0"></a-entity>
+        <a-entity class="cube" mixin="cube" position="0.60 0.45 0"></a-entity>
+        <a-entity class="cube" mixin="cube" position="0.60 0.15 0"></a-entity>
+
+        <a-entity class="cube" mixin="cube" position="0.30 0.75 0"></a-entity>
+        <a-entity class="cube" mixin="cube" position="0 0.75 0"></a-entity>
+        <a-entity class="cube" mixin="cube" position="-0.30 0.75 0"></a-entity>
+
+        <a-entity class="cube" mixin="cube" position="-0.60 1.35 0"></a-entity>
+        <a-entity class="cube" mixin="cube" position="-0.60 1.05 0"></a-entity>
+        <a-entity class="cube" mixin="cube" position="-0.60 0.75 0"></a-entity>
+        <a-entity class="cube" mixin="cube" position="-0.60 0.45 0"></a-entity>
+        <a-entity class="cube" mixin="cube" position="-0.60 0.15 0"></a-entity>
+
+        <!-- Environment -->
+        <a-entity id="sky" cursor-listener
+                  geometry="primitive: sphere; radius: 65;"
+                  material="shader: skyGradient; colorTop: #353449; colorBottom: #BC483E; side: back"></a-entity>
+         <a-entity ground cursor-listener></a-entity>
+         <a-entity light="type: point; color: #f4f4f4; intensity: 0.1; distance: 0" position="-2.5 1.2 2.2"></a-entity>
+         <a-entity light="type: point; color: #f4f4f4; intensity: 0.1; distance: 0" position="-20 -7 -40"></a-entity>
+         <a-entity light="type: ambient; color: #f4f4f4; intensity: 0.25;" position="-8 10 -18"></a-entity>
+      </a-entity>
+      <!-- Hands -->
+      <!-- <a-entity hand-controls="hand: left; handModelStyle: lowPoly; color: #ffcccc" aabb-collider="objects: .cube;" grab></a-entity>
+      <a-entity hand-controls="hand: right; handModelStyle: lowPoly; color: #ffcccc" aabb-collider="objects: .cube;" grab></a-entity> -->
+      <a-entity oculus-touch-controls="hand: left"></a-entity>
+      <a-entity oculus-touch-controls="hand: right"></a-entity>
+
+      <a-entity position="0 1.6 2" camera look-controls wasd-controls>
+        <a-entity id="a-cursor" cursor="fuse: true; fuseTimeout: 500"
+          position="0 0 -1"
+          geometry="primitive: ring; radiusInner: 0.02; radiusOuter: 0.03"
+          material="color: black; shader: flat">
+        </a-entity>
+      </a-entity>
+
+    </a-scene>
+  </body>
+</html>
