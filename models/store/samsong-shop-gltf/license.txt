@@ -1,0 +1,8 @@
+Model Information:
+* title:	Electrical Appliances Shopping Center
+* source:	https://sketchfab.com/3d-models/electrical-appliances-shopping-center-e509e91a906b4e2dbd78f73177016712
+* author:	BehNaM (https://sketchfab.com/GbehnamG)
+
+Model License:
+* license type:	SKETCHFAB Standard (https://sketchfab.com/licenses)
+* requirements:	Under basic restrictions, use worldwide, on all types of media, commercially or not, and in all types of derivative works
