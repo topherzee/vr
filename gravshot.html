@@ -119,15 +119,21 @@ var startRenderLoop = function (engine, canvas) {
     });
 }
 
-var engine = null;
-var scene = null;
-var sceneToRender = null;
-var createDefaultEngine = function() { return new BABYLON.Engine(canvas, true, { preserveDrawingBuffer: true, stencil: true,  disableWebGL2Support: false}); };
-
 var mode = "RUNNING" // "PAUSED" // "RUNNING"
 
 
- var header = new BABYLON.GUI.TextBlock();
+var header = new BABYLON.GUI.TextBlock();
+
+
+
+var engine = null;
+var scene = null;
+var sceneToRender = null;
+var createDefaultEngine = function() { 
+    return new BABYLON.Engine(canvas, true, 
+    { preserveDrawingBuffer: true, stencil: true,  disableWebGL2Support: false}); 
+};
+
 
 var createScene = async function () {
 
@@ -601,8 +607,8 @@ xr.input.onControllerAddedObservable.add((controller) => {
 };
 
 
+
 window.initFunction = async function() {
-    
     
     var asyncEngineCreation = async function() {
         try {
@@ -614,9 +620,11 @@ window.initFunction = async function() {
     }
 
     window.engine = await asyncEngineCreation();
-if (!engine) throw 'engine should not be null.';
-    startRenderLoop(engine, canvas);
-    window.scene = createScene();};
+
+    if (!engine) throw 'engine should not be null.';
+        startRenderLoop(engine, canvas);
+        window.scene = createScene();
+    };
     initFunction().then(() => {scene.then(returnedScene => { sceneToRender = returnedScene; });
                         
 });
