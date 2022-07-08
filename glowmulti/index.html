@@ -14,27 +14,57 @@
 
     <script src="components/ground.js"></script>
     <script src="shaders/skyGradient.js"></script>
-
+<!-- 
     <script src="https://unpkg.com/aframe-event-set-component@4.0.1/dist/aframe-event-set-component.min.js"></script>
-  
-  <script>
+   -->
+
+  <script type="module">
+
+import { initializeApp} from 'https://www.gstatic.com/firebasejs/9.4.1/firebase-app.js'
+import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/9.4.1/firebase-database.js";
+
+
+// TODO: Replace the following with your app's Firebase project configuration
+const firebaseConfig = {
+  apiKey: "AIzaSyDlfEisuwnJQOcL9Z0XNdlW7wk8jJPh19s",
+  authDomain: "vr-magic-hands.firebaseapp.com",
+  databaseURL: "https://vr-magic-hands-default-rtdb.europe-west1.firebasedatabase.app",
+  projectId: "vr-magic-hands",
+  storageBucket: "vr-magic-hands.appspot.com",
+  messagingSenderId: "527976286561",
+  appId: "1:527976286561:web:23a5dfbd1bb8712e04dd20"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getDatabase(app);
+
+// const app = null;
+// const db = null;
+
 
 const params = new URLSearchParams(window.location.search)
-
 // GAME LOOP
 const TICKS_PER_FRAME = 20;
 
 const VELOCITY_ON = false;
 
-const FADEOUT_MS = 100;
 
-var MAX_PARTICLES = 60;
+const FADEOUT_MS = 200;
+const MAX_FADES = 10;
+
+
+var MAX_PARTICLES = 35; //can be overriden with P querystring.
+
 if (params.has('p')){
   MAX_PARTICLES = parseInt(params.get('p'))
 }
-const MAX_FADES = 10;
+
+const FIREBASE_HEAD_SLOWDOWN = 2
+var firebase_counter = 0
+
 const VEL_FACTOR = 10;
 
+const ENABLE_BEATS = false;
 const GREY = 0;
 const WHITE = 1;
 const BLACK = 2;
@@ -42,13 +72,15 @@ const YELLOW = 3;
 const GREEN = 4
 const BLUE = 5;
 const RED = 6; 
-const COLORS = ["grey","white","black","yellow","green","blue","red"];//,"pink"
+const PINK = 7; 
+const COLORS = ["grey","white","black","yellow","green","blue","red","#FF69B4"];//,"pink"
 const SIZES = [0.001, 0.005, 0.02, 0.05, 0.1, 0.2] //these get trippled.
 
 const L = 0; //LEFT
 const R = 1; //RIGHT
 
-var gColorIndex = [4,5];
+// var gColorIndex = [4,5];
+var gColorIndex = [3,3];
 var gColorSkyIndex = 2;
 var gColorGroundIndex = 2;
 
@@ -68,13 +100,24 @@ var gIsMouseDown = false;
 
 
 //DRAWING PARTS OF LINE.
-var aParts= [];
-aParts[L] = [];
-aParts[R] = [];
+const clientId="K" + (Math.random()*1000).toFixed(0)
+console.log(`My Client ID ${clientId}`)
 
-var iPart = [];
-iPart[L] = 0;
-iPart[R] = 0;
+var users={};
+initUser(clientId)
+
+function initUser(CID){
+  console.log(`initUser ${CID}`)
+  users[CID] = {};
+  users[CID].aParts= [];
+  users[CID].aParts[L] = [];
+  users[CID].aParts[R] = [];
+
+  users[CID].iPart = [];
+  users[CID].iPart[L] = 0;
+  users[CID].iPart[R] = 0;
+}
+
 
 var aFades= [];
 aFades[L] = [];
@@ -89,6 +132,7 @@ var gRecordState =  "NOTHING"; //"RECORDING", "PLAYING", "NOTHING"
 if (params.has('PLAY')){
   gRecordState = "PLAYING"
 }
+
 
 const RECORD_MAX = 400;
 
@@ -137,11 +181,113 @@ window.onload = function() {
       aRecord = data;
     }
 
+    //FIREBASE catch events. 
+
+
+    const FB_USE = true;
+
+    if (FB_USE){
+
+      // Clear existing users, otherwise head and hand is confused by all the ghost users:
+      var dbpath = `room1/user1/head/`
+        set(ref(db, dbpath), null).then(() => {
+        })
+        .catch((error) => {
+          console.log(`ERROR - SEND to FIREBASE: ${JSON.stringify(error, null, 2)}`)
+        });;
+
+
+      const ref0 = ref(db, 'room1/user1/trails/0');
+      const ref1 = ref(db, 'room1/user1/trails/1');
+      const refHead = ref(db, 'room1/user1/head');
+
+      onValue(ref0, (snapshot) => {
+        const data = snapshot.val();
+        handleFirebase(0, data)
+      });
+
+      onValue(ref1, (snapshot) => {
+        const data = snapshot.val();
+        handleFirebase(1, data)
+      });
+
+      onValue(refHead, (snapshot) => {
+        const data = snapshot.val();
+        handleFirebaseHead(data)
+      });
+    }
+
+
+
+    console.log("START game loop")
+    //document.getElementById('sky').setAttribute("button-listener","hand:round")
+    document.getElementById('hand-left').setAttribute("button-listener","hand:left")
+    document.getElementById('hand-right').setAttribute("button-listener","hand:right")
     var myVar = setInterval(gameLoop, TICKS_PER_FRAME);
+
   });
+  console.log("STARTUP Complete")
 };
 
+function handleFirebase(hand, data){
+  if (data){
+    if (data.clientId===clientId){
+      console.log('same clientid. Ignore.')
+    }else{
+      //console.log('fb hand:'+ hand)
+      //console.log(`FIRE: ${JSON.stringify(data, null, 2)}`)
+      
+      //debugger;
+      if (!users[data.clientId]){
+        initUser(data.clientId)
+      }
 
+      //PAINT 
+      var sceneEl = document.querySelector('a-scene');
+      var groupEl = document.createElement('a-entity');
+      sceneEl.appendChild(groupEl);
+      drawGlowstickSegment(groupEl,data, hand, data.clientId)
+
+    }
+  }
+}
+
+function handleFirebaseHead(data){
+  
+
+  if (data){
+
+    for (const property in data) {
+      // console.log(`${property}: ${object[property]}`);
+      //debugger;
+      if (property[0]==='K'){
+        if (property !== clientId){
+          const d = data[property];
+          const el_head = document.getElementById("head")
+          if (el_head){
+            el_head.object3D.position.set(d.pos_head.x, d.pos_head.y, d.pos_head.z)
+            el_head.object3D.rotation.set(d.rot_head.x, d.rot_head.y, d.rot_head.z)
+            // console.log(`onHead.. ok 2.`)
+          }
+
+          const el_left = document.getElementById("friend-hand-left")
+          if (el_left){
+            el_left.object3D.position.set(d.pos_left.x, d.pos_left.y, d.pos_left.z)
+            el_left.object3D.rotation.set(d.rot_left.x, d.rot_left.y, d.rot_left.z)
+            // console.log(`onHead.. ok 2.`)
+          }
+
+          const el_right = document.getElementById("friend-hand-right")
+          if (el_right){
+            el_right.object3D.position.set(d.pos_right.x, d.pos_right.y, d.pos_right.z)
+            el_right.object3D.rotation.set(d.rot_right.x, d.rot_right.y, d.rot_right.z)
+            // console.log(`onHead.. ok 2.`)
+          }
+        }
+      }
+    }
+  }
+}
 
     function gameLoop(){
       
@@ -176,6 +322,53 @@ window.onload = function() {
           console.log("RECORDING SAVED.")
           localStorage.setItem('vr-recording-2', JSON.stringify(aRecord,null,2));
         }
+      }
+
+
+      //SLOW IT DOWN..
+      firebase_counter++;
+        if (firebase_counter>FIREBASE_HEAD_SLOWDOWN){
+          firebase_counter = 0;
+        }
+
+      const SEND_HEAD_TO_FIREBASE = true;
+
+      if (SEND_HEAD_TO_FIREBASE && firebase_counter==0){
+
+        const el_head = document.getElementById("cam")
+        const el_left = document.getElementById("hand-left")
+        const el_right = document.getElementById("hand-right")
+        if (!el_head || !el_left || !el_right){
+          return;
+        }
+        const pos_head = el_head.object3D.position;
+        const rot_head = el_head.object3D.rotation;
+        const pos_left = el_left.object3D.position;
+        const rot_left = el_left.object3D.rotation;
+        const pos_right = el_right.object3D.position;
+        const rot_right = el_right.object3D.rotation;
+        
+        const data = {
+          clientId: clientId,
+          pos_head:pos_head,
+          rot_head:{x: rot_head._x, y: rot_head._y, z: rot_head._z},
+          pos_left:pos_left,
+          rot_left:{x: rot_left._x, y: rot_left._y, z: rot_left._z},
+          pos_right:pos_right,
+          rot_right:{x: rot_right._x, y: rot_right._y, z: rot_right._z},
+
+        }
+        var dbpath = `room1/user1/head/${clientId}`
+        //console.log(`SEND to FIREBASE: ${dbpath}`)
+        //console.log(JSON.stringify(data, null, 2))
+        set(ref(db, dbpath), data).then(() => {
+          // Data saved successfully!
+          //console.log(`cool`);
+        })
+        .catch((error) => {
+          // The write failed...
+          console.log(`ERROR - SEND to FIREBASE: ${JSON.stringify(error, null, 2)}`)
+        });;
       }
     }
 
@@ -286,30 +479,35 @@ function createTrailGlowstick(newPos, newPos2, color, lastPos1, lastPos2, hand, 
   var groupEl = document.createElement('a-entity');
   sceneEl.appendChild(groupEl);
 
+  const data = {
+    clientId: clientId, 
+    color: color,
+    newPos: newPos, 
+    newPos2: newPos2,
+    lastPos1: lastPos1, 
+    lastPos2: lastPos2
+  }
 
-  var newEl1 = document.createElement('a-triangle');
-  var newEl2 = document.createElement('a-triangle');
+  drawGlowstickSegment(groupEl, data, hand, clientId)
 
-  groupEl.appendChild(newEl1);
-  groupEl.appendChild(newEl2);
-  newEl1.setAttribute('color', color);
-  newEl2.setAttribute('color', color);
-  newEl1.setAttribute('material','side: double; transparent: false;')
-  newEl2.setAttribute('material','side: double; transparent: false;')
+  // PUSH TO FIREBASE:
+  //console.log("research: " + JSON.stringify(newEl1, null, 2))
+  const SEND_TO_FIREBASE = true;
 
-  newEl1.setAttribute('geometry', {
-    primitive: 'triangle',
-    vertexA: newPos,
-    vertexB: lastPos1,
-    vertexC: lastPos2
-  });
-
-  newEl2.setAttribute('geometry', {
-    primitive: 'triangle',
-    vertexA: newPos,
-    vertexB: newPos2,
-    vertexC: lastPos2
-  });
+  if (SEND_TO_FIREBASE){
+    var dbpath = 'room1/user1/trails/' + hand
+    //console.log(`SEND to FIREBASE: ${dbpath}`)
+    //console.log(JSON.stringify(data, null, 2))
+    set(ref(db, dbpath), data).then(() => {
+      // Data saved successfully!
+      //console.log(`cool`);
+    })
+    .catch((error) => {
+      // The write failed...
+      console.log(`ERROR - SEND to FIREBASE: ${JSON.stringify(error, null, 2)}`)
+    });;
+    // set(ref(db, `room1/${clientId}/trails/${hand}`), data);
+  }
 
   //not working yet.
   if (false && newVel){
@@ -326,22 +524,50 @@ function createTrailGlowstick(newPos, newPos2, color, lastPos1, lastPos2, hand, 
         })
   }
  
-
-  //Destroy old one and register new one
-
-    if (aParts[hand][iPart[hand]]){
-      var el = aParts[hand][iPart[hand]];
-      el.parentNode.removeChild(el);
-    }
-
-    aParts[hand][iPart[hand]] = groupEl;
-    iPart[hand] ++;
-    if (iPart[hand] > MAX_PARTICLES){
-      iPart[hand] = 0;
-    } 
-
 }
 
+
+function drawGlowstickSegment(groupEl,data, hand, CID){
+
+  var newEl1 = document.createElement('a-triangle');
+  var newEl2 = document.createElement('a-triangle');
+
+  groupEl.appendChild(newEl1);
+  groupEl.appendChild(newEl2);
+  newEl1.setAttribute('color', data.color);
+  newEl2.setAttribute('color', data.color);
+  newEl1.setAttribute('material','side: double; transparent: false;')
+  newEl2.setAttribute('material','side: double; transparent: false;')
+
+  newEl1.setAttribute('geometry', {
+    primitive: 'triangle',
+    vertexA: data.newPos,
+    vertexB: data.lastPos1,
+    vertexC: data.lastPos2
+  });
+
+  newEl2.setAttribute('geometry', {
+    primitive: 'triangle',
+    vertexA: data.newPos,
+    vertexB: data.newPos2,
+    vertexC: data.lastPos2
+  });
+
+  //Destroy old one and register new one
+  //console.log(`draw: ${CID} part:${users[CID].iPart[hand]}`)
+
+
+  if (users[CID].aParts[hand][users[CID].iPart[hand]]){
+    var el = users[CID].aParts[hand][users[CID].iPart[hand]];
+    el.parentNode.removeChild(el);
+  }
+
+  users[CID].aParts[hand][users[CID].iPart[hand]] = groupEl;
+  users[CID].iPart[hand] ++;
+  if (users[CID].iPart[hand] > MAX_PARTICLES){
+    users[CID].iPart[hand] = 0;
+  } 
+}
 
 
 function createFadeGlowstick(newPos, newPos2, color, lastPos1, lastPos2, hand, newVel){
@@ -379,15 +605,19 @@ function createFadeGlowstick(newPos, newPos2, color, lastPos1, lastPos2, hand, n
   newEl1.setAttribute('animation__opacity', {
     property: 'material.opacity',
     dur: FADEOUT_MS,
-    easing: 'easeOutQuad',
+    // easing: 'easeOutQuad',
+    easing: 'steps(1)',
     to: '0'
   })
   newEl2.setAttribute('animation__opacity', {
     property: 'material.opacity',
     dur: FADEOUT_MS,
-    easing: 'easeOutQuad',
+    // easing: 'easeOutQuad',
+    easing: 'steps(1)',
     to: '0'
   })
+
+
 
 //Destroy old one and register new one
 
@@ -520,7 +750,10 @@ AFRAME.registerComponent('cursor-listener', {
     this.el.addEventListener('mousedown', function (evt) {
       gIsMouseDown = true;
       //console.log("mousedown:" + JSON.stringify(this.el,null,2));
-      setBeat();
+      if (ENABLE_BEATS){
+        setBeat();
+      }
+      
 
     });
     this.el.addEventListener('mouseup', function (evt) {
@@ -528,6 +761,20 @@ AFRAME.registerComponent('cursor-listener', {
     });
   }
 });
+
+
+AFRAME.registerComponent('button-listener-test', {
+  schema:{
+      hand: {type: 'string'}
+    },
+
+    tick: function (){
+
+    },
+  init: function () {
+    console.log(`button-listener - init TEST`)
+  }
+})
 
 
 AFRAME.registerComponent('button-listener', {
@@ -541,6 +788,8 @@ tick: function (){
 },
 
 init: function () {
+  console.log(`button-listener - init`)
+
   var el = this.el;
   var H;
   var hand = this.data.hand;
@@ -582,7 +831,7 @@ init: function () {
 
   el.addEventListener('triggerdown', function (evt) {
     gTriggerDown[H] = true;
-    //console.log("trigger down:" + H)
+    console.log("trigger down:" + H)
   });        
   el.addEventListener('triggerup', function (evt) {
     gTriggerDown[H] = false;
@@ -598,7 +847,9 @@ init: function () {
 
   el.addEventListener('gripdown', function (evt) {
     gGripDown[H] = true;
-    setBeat();
+    if (ENABLE_BEATS){
+      setBeat();
+    }
   });        
   el.addEventListener('gripup', function (evt) {
     gGripDown[H] = false;
@@ -618,7 +869,7 @@ init: function () {
 
 
   el.addEventListener('thumbstickmoved', function (evt) {
-    
+    console.log('thumbstickmoved')
     
     if (!gThumbSpent[H]){
       if (evt.detail.y > 0.65) { //DOWN
@@ -815,33 +1066,35 @@ function GermanFlagFast(beat){
 
         
 
-    
+console.log("START - end of code 2")    
 </script>
 </head>
 
 <body>
   <a-scene
   id="sky"
-  avatar-recorder avatar-replayer
+  
     renderer="colorManagement: true;"
     cursor="rayOrigin: mouse"
     raycaster="objects: [cube]" fog="color: #bc483e; near: 0; far: 65;"
-    background="color: blue"
+    background="color: black"
     >
+    <!-- avatar-recorder avatar-replayer -->
 
-    <a-entity id="sky" cursor-listener
+    <a-entity id="sky2" cursor-listener
     geometry="primitive: sphere; radius: 65;"
     material="shader: skyGradient; colorTop: #353449; colorBottom: #BC483E; side: back"></a-entity>
-    
+  
+
     <!-- Hands -->
 
-    <a-entity  oculus-touch-controls="hand: left; model:true" id="hand-left" button-listener="hand:left;">
+    <a-entity  oculus-touch-controls="hand: left; model:true" id="hand-left" >
       <a-entity light="type: point; color: #ffffff; intensity: 0.5; distance: 10; decay: 5;" position="0 0 0"></a-entity>
       <a-entity id="glowstick-left-tip" position="0 0.15 -0.1" rotation="0 0 0" material="visible:true; shader: flat; color: green;" geometry="primitive: box; height: 0.005; width: 0.005; depth: 0.005"></a-entity>
       <a-entity id="thumb-control-left" position="0 0.05 -0.01" rotation="40 0 0" material="visible:false; shader: flat; color: grey;" geometry="primitive: box; height: 0.03; width: 0.1; depth: 0.001"></a-entity>
     </a-entity>
-
-    <a-entity  oculus-touch-controls="hand: right; model:true" id="hand-right"  button-listener="hand:right;">
+    <!-- button-listener="hand:right;" -->
+    <a-entity  oculus-touch-controls="hand: right; model:true" id="hand-right"  >
       <a-entity light="type: point; color: #ffffff; intensity: 0.5; distance: 10; decay: 5;" position="0 0 0"></a-entity>
       <a-entity id="glowstick-right-tip" position="0 0.15 -0.1" rotation="0 0 0" material="visible:true; shader:flat; color: yellow;" geometry="primitive: box; height: 0.005; width: 0.005; depth: 0.005"></a-entity>
       <a-entity id="thumb-control-right" position="0 0.05 -0.01" rotation="40 0 0" material="visible:false; shader: flat; color: grey;" geometry="primitive: box; height: 0.03; width: 0.1; depth: 0.001"></a-entity>
@@ -858,8 +1111,7 @@ function GermanFlagFast(beat){
     </a-entity>
 
 
-
-
+    <a-text value="Happy Birthday, Space Cowboy!" color="#222222" position="2 1 2" rotation="0 180 0" ></a-text>
 
 
 
@@ -890,14 +1142,25 @@ function GermanFlagFast(beat){
 
 
 
+    <a-entity id="head" position="0 0 -1" rotation="0 0 0 ">
+      <a-triangle id="head-left" color="#333" vertex-a="0 0.12 0"  vertex-b="0 -0.15 0"  vertex-c="-0.2 0.15 0.2"   material="side: double"></a-triangle>
+      <a-triangle id="head-right" color="#555" vertex-a="0 0.12 0"  vertex-b="0 -0.15 0"  vertex-c="0.2 0.15 0.2"   material="side: double"></a-triangle>
+      <!-- <a-triangle id="head-eyes" color="#F66" vertex-a="-0.15 0 0"  vertex-b="0.15 0 0"  vertex-c="0 -0.05 0"   material="side: double"></a-triangle> -->
+      <a-cylinder color="#F66" height="0.02" radius="0.2" theta-start="140" theta-length="80" position=" 0 0 0.2" side="double" open-ended="true"></a-cylinder>
+
+    </a-entity>
+
+    <a-triangle id="friend-hand-left" color="#333" vertex-a="0 0 0"  vertex-b="0 -0.15 0"  vertex-c="-0.1 -0.15 0"   material="side: double"></a-triangle>
+    <a-triangle id="friend-hand-right" color="#555" vertex-a="0 0 0"  vertex-b="0 -0.15 0"  vertex-c="0.1 -0.15 0"   material="side: double"></a-triangle>
 
 
-    <a-entity position="0 1.6 2" camera look-controls wasd-controls>
+    <a-entity id="cam" position="0 1.4 2" camera look-controls wasd-controls>
       <a-entity id="a-cursor" cursor="fuse: true; fuseTimeout: 500"
         position="0 0 -1"
         geometry="primitive: ring; radiusInner: 0.02; radiusOuter: 0.03"
         material="color: black; shader: flat; visible:false;">
       </a-entity>
+
     </a-entity>
 
   </a-scene>
