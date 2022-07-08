@@ -1,0 +1,897 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>MAGIC HANDS</title>
+    <meta name="description" content="Tracked Controls – A-Frame">
+    <!-- <script src="../../../dist/aframe-master.js"></script> -->
+    <script src="https://aframe.io/releases/1.2.0/aframe.min.js"></script>
+
+    <!-- <script src="components/aabb-collider.js"></script> -->
+    <!-- <script src="components/grab.js"></script> -->
+    <!-- <script src="components/ground.js"></script>
+    <script src="shaders/skyGradient.js"></script> -->
+
+    <script src="components/ground.js"></script>
+    <script src="shaders/skyGradient.js"></script>
+
+    <script src="https://unpkg.com/aframe-event-set-component@4.0.1/dist/aframe-event-set-component.min.js"></script>
+  
+  <script>
+
+
+// GAME LOOP
+const TICKS_PER_FRAME = 20;
+
+const VELOCITY_ON = false;
+
+const FADEOUT_MS = 100;
+
+const MAX_PARTICLES = 20;
+const MAX_FADES = 10;
+const VEL_FACTOR = 10;
+
+const GREY = 0;
+const WHITE = 1;
+const BLACK = 2;
+const YELLOW = 3;
+const GREEN = 4
+const BLUE = 5;
+const RED = 6; 
+const COLORS = ["grey","white","black","yellow","green","blue","red"];//,"pink"
+const SIZES = [0.001, 0.005, 0.02, 0.05, 0.1, 0.2] //these get trippled.
+
+const L = 0; //LEFT
+const R = 1; //RIGHT
+
+var gColorIndex = [4,5];
+var gColorSkyIndex = 2;
+var gColorGroundIndex = 2;
+
+var gSizeIndex = [1,0];
+var gDrawing= [false, false];
+
+var gTriggerDown = [false,false];
+var gTriggerTouch = [false, false];
+var gGripDown = [false,false];
+var gAX_Down = [false,false];
+var gBY_Down = [false,false];
+
+var gThumbSpent = [false, false];
+
+
+var gIsMouseDown = false;
+
+
+//DRAWING PARTS OF LINE.
+var aParts= [];
+aParts[L] = [];
+aParts[R] = [];
+
+var iPart = [];
+iPart[L] = 0;
+iPart[R] = 0;
+
+var aFades= [];
+aFades[L] = [];
+aFades[R] = [];
+
+var iFade = [];
+iFade[L] = 0;
+iFade[R] = 0;
+
+
+var gRecordState =  "PLAYING"; //"RECORDING", "PLAYING", "NOTHING"
+const RECORD_MAX = 400;
+
+var aRecord = [];
+aRecord[L] = [];
+aRecord[R] = [];
+var iRecord = 0;
+
+var MAX_POS = 3;
+
+var aPos = []
+aPos[L] = [];
+aPos[R] = [];
+
+var aPosCursor = []
+
+var velCursor = {"x":0,"y":0,"z":0};
+
+var gVel = [];
+gVel[L] = {"x":0,"y":0,"z":0};
+gVel[R] = {"x":0,"y":0,"z":0};
+
+
+var gLastPos1 = [];
+gLastPos1[L] = new THREE.Vector3();
+gLastPos1[R] = new THREE.Vector3();
+
+var gLastPos2 = [];
+gLastPos2[L] = new THREE.Vector3();
+gLastPos2[R] = new THREE.Vector3();
+
+
+window.onload = function() {
+  
+  console.log("STARTUP!")
+
+  fetch("./recordings/glowsticks-1.json")
+  .then(response => {
+    return response.json();
+  })
+  .then(data => {
+    console.log(data)
+  
+    if (gRecordState === "PLAYING"){
+      //LOAD FROM LOCAL STORAGE
+      aRecord = data;
+    }
+
+    var myVar = setInterval(gameLoop, TICKS_PER_FRAME);
+  });
+};
+
+
+
+    function gameLoop(){
+      
+      if (gBeatState=="BEATING"){
+        getBeat(GermanFlag);
+      }
+
+      //console.log("beat:" + getBeat())
+      //Cursor
+      if (gIsMouseDown){
+        var cursor = document.querySelector('#a-cursor'); 
+        if (cursor.components.raycaster.intersections.length == 0){
+          return; 
+        }
+        var intersection = cursor.components.raycaster.intersections[0];
+        var intersectionPosition = intersection.point;
+      }
+
+      // SET COLOR OF SKY AND GROUND
+
+      // var sky = document.querySelector('#sky'); 
+      // sky.setAttribute('background', "color:" + COLORS[gColorSkyIndex]);
+      // var ground = document.querySelector('#ground'); 
+      // ground.setAttribute('color', COLORS[gColorGroundIndex]);
+
+      gameLoop_Hand(L,"left");
+      gameLoop_Hand(R,"right");
+
+      if (gRecordState === "RECORDING"){
+          if (aRecord[L].length === (RECORD_MAX-1)){
+          //console.log(JSON.stringify(aRecord[L],null,2));
+          console.log("RECORDING SAVED.")
+          localStorage.setItem('vr-recording-2', JSON.stringify(aRecord,null,2));
+        }
+      }
+    }
+
+
+    function gameLoop_Hand(H, handString){
+
+      var q;
+
+      var elHand = document.querySelector('#hand-' + handString); 
+
+      if (gRecordState === "PLAYING"){
+        
+        //HANDLE EVENTS
+        if (aRecord[H][iRecord].events.length > 0){
+          var events = aRecord[H][iRecord].events;
+          for (var i=0; i<events.length; i++){
+            var event = events[i];
+            elHand.emit(event.name, event.detail);
+          }
+        }
+        
+        //HANDLE POSITION AND ROTATION
+        pos = aRecord[H][iRecord].pos;
+        rot = aRecord[H][iRecord].rot;
+
+        elHand.setAttribute('position', pos)
+
+        var r = rot;
+        q = new THREE.Quaternion(r._x, r._y, r._z, r._w);
+        elHand.object3D.setRotationFromQuaternion(q);
+
+        gTriggerDown[H] = aRecord[H][iRecord].buttons.trigger_down;
+        gTriggerTouch[H] = aRecord[H][iRecord].buttons.trigger_touch;
+
+        iRecord ++;
+        if (iRecord >= aRecord[H].length){
+          iRecord = 0;
+        }
+        
+      }
+
+      var elTip = document.querySelector('#glowstick-' + handString + '-tip'); 
+      elTip.setAttribute('material', 'color:' + COLORS[gColorIndex[H]])
+
+      //Controllers'
+
+      var elHand = document.querySelector('#hand-' + handString); 
+      var pos = elHand.getAttribute('position');
+      var pos2 = new THREE.Vector3();
+      var q2 = new THREE.Quaternion();
+      var rot = elHand.object3D.getWorldQuaternion(q2);
+      
+      gVel[H] = calcVelocity(aPos[H], pos);
+
+      if (gRecordState === "RECORDING"){
+
+        if (aRecord[H].length < RECORD_MAX){
+
+          var hand = {
+            "events" : JSON.parse(JSON.stringify(gRecordedEvents[H])),
+            "pos": {...pos},
+            "rot": {...rot},
+            "buttons" : {
+              "trigger_down": gTriggerDown[H],
+              "trigger_touch": gTriggerTouch[H],
+              "grip_down": gGripDown[H],
+              "ax_down": gAX_Down[H],
+              "by_down": gBY_Down[H],
+            },
+          }
+          aRecord[H].push(hand);
+          gRecordedEvents[H] = [];
+        }
+      }
+
+
+      if (gTriggerDown[H] || gTriggerTouch[H]){ 
+
+        gLastPos1[H] = document.querySelector('#glowstick-' + handString + '-1').object3D.getWorldPosition(gLastPos1[H]);
+        gLastPos2[H] = document.querySelector('#glowstick-' + handString + '-2').object3D.getWorldPosition(gLastPos2[H]);
+
+        var elGlowStick = document.querySelector('#glowstick-' + handString ); 
+        elGlowStick.setAttribute('position', pos);
+        elGlowStick.object3D.setRotationFromQuaternion(rot)
+        pos2 = document.querySelector('#glowstick-' + handString + '-2').object3D.getWorldPosition(pos2);
+
+        if (!gDrawing[H]){
+          gDrawing[H] = true;
+          if (!gBY_Down[H]){
+            gLastPos1[H].copy(pos); //copy pos into lastPos
+            gLastPos2[H].copy(pos2);
+          }
+        }
+
+        if (gTriggerDown[H]){
+          createTrailGlowstick(pos, pos2, COLORS[gColorIndex[H]], gLastPos1[H], gLastPos2[H], H, gVel[H])
+        }else if (gTriggerTouch[H]){
+          createFadeGlowstick(pos, pos2, COLORS[gColorIndex[H]], gLastPos1[H], gLastPos2[H], H, gVel[H])
+        }
+      }
+    }
+
+
+function createTrailGlowstick(newPos, newPos2, color, lastPos1, lastPos2, hand, newVel){
+
+  var sceneEl = document.querySelector('a-scene');
+
+  var groupEl = document.createElement('a-entity');
+  sceneEl.appendChild(groupEl);
+
+
+  var newEl1 = document.createElement('a-triangle');
+  var newEl2 = document.createElement('a-triangle');
+
+  groupEl.appendChild(newEl1);
+  groupEl.appendChild(newEl2);
+  newEl1.setAttribute('color', color);
+  newEl2.setAttribute('color', color);
+  newEl1.setAttribute('material','side: double; transparent: false;')
+  newEl2.setAttribute('material','side: double; transparent: false;')
+
+  newEl1.setAttribute('geometry', {
+    primitive: 'triangle',
+    vertexA: newPos,
+    vertexB: lastPos1,
+    vertexC: lastPos2
+  });
+
+  newEl2.setAttribute('geometry', {
+    primitive: 'triangle',
+    vertexA: newPos,
+    vertexB: newPos2,
+    vertexC: lastPos2
+  });
+
+  //not working yet.
+  if (false && newVel){
+
+    var x = newPos.x + newVel.x;
+    var y=  newPos.y + newVel.y;
+    var z= newPos.z + newVel.z;
+
+    newEl1.setAttribute('animation__move', {
+          property: 'geometry.vertexA',
+          dur: 2000,
+          easing: 'linear',
+          to: '' + x + ' ' + y + ' ' + z
+        })
+  }
+ 
+
+  //Destroy old one and register new one
+
+    if (aParts[hand][iPart[hand]]){
+      var el = aParts[hand][iPart[hand]];
+      el.parentNode.removeChild(el);
+    }
+
+    aParts[hand][iPart[hand]] = groupEl;
+    iPart[hand] ++;
+    if (iPart[hand] > MAX_PARTICLES){
+      iPart[hand] = 0;
+    } 
+
+}
+
+
+
+function createFadeGlowstick(newPos, newPos2, color, lastPos1, lastPos2, hand, newVel){
+
+  var sceneEl = document.querySelector('a-scene');
+
+  var groupEl = document.createElement('a-entity');
+  sceneEl.appendChild(groupEl);
+
+  var newEl1 = document.createElement('a-triangle');
+  var newEl2 = document.createElement('a-triangle');
+
+  groupEl.appendChild(newEl1);
+  groupEl.appendChild(newEl2);
+  newEl1.setAttribute('color', color);
+  newEl2.setAttribute('color', color);
+  newEl1.setAttribute('material','side: double; transparent: true;')
+  newEl2.setAttribute('material','side: double; transparent: true;')
+
+  newEl1.setAttribute('geometry', {
+    primitive: 'triangle',
+    vertexA: newPos,
+    vertexB: lastPos1,
+    vertexC: lastPos2
+  });
+
+  newEl2.setAttribute('geometry', {
+    primitive: 'triangle',
+    vertexA: newPos,
+    vertexB: newPos2,
+    vertexC: lastPos2
+  });
+
+
+  newEl1.setAttribute('animation__opacity', {
+    property: 'material.opacity',
+    dur: FADEOUT_MS,
+    easing: 'easeOutQuad',
+    to: '0'
+  })
+  newEl2.setAttribute('animation__opacity', {
+    property: 'material.opacity',
+    dur: FADEOUT_MS,
+    easing: 'easeOutQuad',
+    to: '0'
+  })
+
+//Destroy old one and register new one
+
+  if (aFades[hand][iFade[hand]]){
+    var el = aFades[hand][iFade[hand]];
+    el.parentNode.removeChild(el);
+  }
+
+  aFades[hand][iFade[hand]] = groupEl;
+  iFade[hand] ++;
+  if (iFade[hand] > MAX_FADES){
+    iFade[hand] = 0;
+  } 
+
+}
+
+  
+
+
+function calcVelocity(aPos, pos){
+
+  aPos.push(pos);
+  if (aPos.length > MAX_POS){
+    aPos.shift();
+  }
+
+  //Track velocities
+  var vel = {"x":0,"y":0,"z":0}
+
+  //console.log("aPos.length:" + aPos.length);
+  //if (aPos.length >= MAX_POS){
+    var x = (pos.x - aPos[0].x) * VEL_FACTOR;
+    var y = (pos.y - aPos[0].y) * VEL_FACTOR;
+    var z = (pos.z - aPos[0].z) * VEL_FACTOR;
+    vel = {"x":x, "y":y, "z":z}
+    //console.log("vvv x:" + x);
+  //}
+  
+  return vel;
+}
+
+
+function incrementColor(H,color,amount){
+
+    gColorIndex[H]+= amount;
+    if (gColorIndex[H] >= COLORS.length){
+      gColorIndex[H] = 0;
+    }else if (gColorIndex[H]<0){
+      gColorIndex[H] = COLORS.length;
+    }
+}
+
+function incrementSize(H, amount){
+
+  var hand;
+  var f,p, point;
+  if (H===L){
+    hand = "left"
+  }else{
+    hand = "right"
+  }
+
+  gSizeIndex[H]+= amount;
+  if (gSizeIndex[H] >= SIZES.length){
+    gSizeIndex[H] = 0;
+  }else if (gSizeIndex[H]<0){
+    gSizeIndex[H] = SIZES.length;
+  }
+
+  f = SIZES[gSizeIndex[H]];
+  p = {'x':0, 'y':f*3, 'z':-f*2}
+  
+  point = document.querySelector('#glowstick-' + hand + '-2'); 
+  point.setAttribute('position', p)
+  point = document.querySelector('#glowstick-'+ hand + '-tip'); 
+  point.setAttribute('position', p)
+}
+
+
+var gBeatState = "WAIT_START"// WAIT_START, "WAIT_END", "BEATING"
+var gBeatStartMS = Date.now();
+var gBeatPeriodMS = 500;
+var gLastBeat = 0;
+
+function setBeat(){
+  if (gBeatState=="WAIT_START"){
+    gBeatStartMS = Date.now();
+    gBeatState = "WAIT_END";
+  }else if (gBeatState=="WAIT_END"){
+    gBeatPeriodMS = Date.now() - gBeatStartMS;
+    gBeatState = "BEATING";
+  }else if (gBeatState=="BEATING"){
+    gBeatStartMS = Date.now();
+    gBeatState = "WAIT_END";
+    gBeatPeriodMS = 0;
+  }
+  console.log("BeatState:" + gBeatState + " gBeatMS: " + gBeatPeriodMS)
+}
+
+// Returns a number from 1 to 16, which beat we are on.
+const BEATS_PER_MEASURE = 16;
+
+function getBeat(callbackOnBeatChange){
+  if (gBeatPeriodMS == 0){
+    return 0;
+  }
+  var sixteenthMS = gBeatPeriodMS/4;
+
+  var remainder = (Date.now() - gBeatStartMS) % (sixteenthMS * BEATS_PER_MEASURE);
+  var beat = Math.floor(remainder / sixteenthMS) + 1;
+  //console.log ("period:" + sixteenthMS +" remainer: " + remainder + " beat: " + beat)
+  if (beat != gLastBeat){
+    callbackOnBeatChange(beat);
+    gLastBeat = beat;
+  }
+  return beat;
+}
+
+
+  // Component to change to a sequential color on click.
+AFRAME.registerComponent('cursor-listener', {
+  tick: function (){
+    //var el = this.el;
+    //console.log("x:" + velCursor.x);
+    //console.log("c:" + aPosCursor.length);
+  },
+  init: function () {
+    // this.el.addEventListener('click', function (evt) {
+    //   //this.setAttribute('material', 'color', COLORS[lastIndex]);
+    this.el.addEventListener('mousedown', function (evt) {
+      gIsMouseDown = true;
+      //console.log("mousedown:" + JSON.stringify(this.el,null,2));
+      setBeat();
+
+    });
+    this.el.addEventListener('mouseup', function (evt) {
+      gIsMouseDown = false;
+    });
+  }
+});
+
+
+AFRAME.registerComponent('button-listener', {
+
+schema:{
+  hand: {type: 'string'}
+},
+
+tick: function (){
+
+},
+
+init: function () {
+  var el = this.el;
+  var H;
+  var hand = this.data.hand;
+  if (this.data.hand==="left"){
+    H = 0;
+  }else{
+    H = 1;
+  }
+
+  this.recordEvent = this.recordEvent.bind(this);
+
+  
+
+  el.addEventListener('xbuttondown', function (evt) {
+    gAX_Down[H] = true;
+  });
+  el.addEventListener('xbuttonup', function (evt) {
+    gAX_Down[H] = false;
+  });
+  el.addEventListener('abuttondown', function (evt) {
+    gAX_Down[H] = true;
+  });
+  el.addEventListener('abuttonup', function (evt) {
+    gAX_Down[H] = false;
+  });
+
+  el.addEventListener('ybuttondown', function (evt) {
+    gBY_Down[H] = true;
+  });
+  el.addEventListener('ybuttonup', function (evt) {
+    gBY_Down[H] = false;
+  });
+  el.addEventListener('bbuttondown', function (evt) {
+    gBY_Down[H] = true;
+  });
+  el.addEventListener('bbuttonup', function (evt) {
+    gBY_Down[H] = false;
+  });
+
+  el.addEventListener('triggerdown', function (evt) {
+    gTriggerDown[H] = true;
+    //console.log("trigger down:" + H)
+  });        
+  el.addEventListener('triggerup', function (evt) {
+    gTriggerDown[H] = false;
+    gDrawing[H] = false;
+  });
+
+  el.addEventListener('triggertouchstart', function (evt) {
+    gTriggerTouch[H] = true;
+  });        
+  el.addEventListener('triggertouchend', function (evt) {
+    gTriggerTouch[H] = false;
+  });
+
+  el.addEventListener('gripdown', function (evt) {
+    gGripDown[H] = true;
+    setBeat();
+  });        
+  el.addEventListener('gripup', function (evt) {
+    gGripDown[H] = false;
+  });
+
+  el.addEventListener('thumbsticktouchstart', function (evt) {
+    var thumb = document.querySelector("#thumb-control-" + hand);
+    //thumb.setAttribute("visible","true")
+  });        
+  el.addEventListener('thumbsticktouchend', function (evt) {
+    var thumb = document.querySelector("#thumb-control-" + hand);
+    //thumb.setAttribute("visible","false")
+  });
+
+  el.addEventListener('thumbstickmoved', this.recordEvent);
+  el.addEventListener('buttondown', this.recordEvent);
+
+
+  el.addEventListener('thumbstickmoved', function (evt) {
+    
+    
+    if (!gThumbSpent[H]){
+      if (evt.detail.y > 0.65) { //DOWN
+        incrementSize(H, -1); 
+        gThumbSpent[H] = true;
+      }
+      if (evt.detail.y < -0.65) {  //UP
+        incrementSize(H, 1); 
+        gThumbSpent[H] = true;
+      }
+      if (evt.detail.x < -0.65) { //LEFT
+          incrementColor(H, gColorIndex[H], -1); 
+          gThumbSpent[H] = true;
+      }
+      if (evt.detail.x > 0.65) { //RIGHT
+          incrementColor(H, gColorIndex[H], 1); 
+          gThumbSpent[H] = true;
+      }
+    }//if
+
+    if (Math.abs(evt.detail.x) < 0.4 && Math.abs(evt.detail.y) < 0.4){
+      gThumbSpent[H] = false;
+    }
+  });
+
+},
+
+
+recordEvent: function (evt) {
+  var detail;
+
+  var H;
+  if (this.data.hand==="left"){
+    H = 0;
+  }else{
+    H = 1;
+  }
+
+  //debugger;
+
+  if (gRecordState != "RECORDING"){ return;}
+  // if (!this.isRecording) { return; }
+
+  // Filter out `target`, not serializable.
+  if ('detail' in evt && 'state' in evt.detail && typeof evt.detail.state === 'object' &&
+      'target' in evt.detail.state) {
+    delete evt.detail.state.target;
+  }
+
+  detail = {};
+  EVENTS[evt.type].props.forEach(function buildDetail (propName) {
+    // Convert GamepadButton to normal JS object.
+    if (propName === 'state') {
+      var stateProp;
+      detail.state = {};
+      for (stateProp in evt.detail.state) {
+        detail.state[stateProp] = evt.detail.state[stateProp];
+      }
+      return;
+    }
+    detail[propName] = evt.detail[propName];
+  });
+
+  gRecordedEvents[H].push({
+    name: evt.type,
+    detail: detail,
+    timestamp: this.lastTimestamp
+  });
+},   
+
+});
+
+var gRecordedEvents = [];
+gRecordedEvents[L] = [];
+gRecordedEvents[R] = [];
+
+var EVENTS = {
+  axismove: {id: 0, props: ['id', 'axis', 'changed']},
+  buttonchanged: {id: 1, props: ['id', 'state']},
+  buttondown: {id: 2, props: ['id', 'state']},
+  buttonup: {id: 3, props: ['id', 'state']},
+  touchstart: {id: 4, props: ['id', 'state']},
+  touchend: {id: 5, props: ['id', 'state']},
+
+  thumbstickmoved: {id: 6, props: ['x', 'y']},
+};
+
+var EVENTS_DECODE = {
+  0: 'axismove',
+  1: 'buttonchanged',
+  2: 'buttondown',
+  3: 'buttonup',
+  4: 'touchstart',
+  5: 'touchend',
+
+  6: 'thumbstickmoved',
+};
+
+
+
+
+function BeeFlag(beat){
+  if (beat==1 || beat==3 || beat==5 || beat==7){
+    gColorIndex[R] = 1;
+    gColorIndex[L] = 3;
+  }else{
+    gColorIndex[R] = 2;
+    gColorIndex[L] = 2;
+  }
+}
+
+function CrazyBee(beat){
+
+  gColorSkyIndex = YELLOW;
+  gColorGroundIndex = BLACK;
+
+  if (beat==1 || beat==3 || beat==5 || beat==7){
+    gColorIndex[R] = 1;
+    gColorIndex[L] = 3;
+  }else{
+    gColorIndex[R] = 2;
+    gColorIndex[L] = 2;
+  }
+
+  if (beat < 5){
+    gColorSkyIndex = YELLOW;
+    gColorGroundIndex = BLACK;
+    }else{
+      gColorSkyIndex = BLACK;
+    gColorGroundIndex = YELLOW;
+    }
+  }
+
+
+function USAFlag(beat){
+
+  gColorSkyIndex = WHITE;
+  gColorGroundIndex = WHITE;
+
+  //every 4th beat.
+  if (beat % 4){
+    gColorIndex[R] = WHITE;
+    gColorIndex[L] = RED; //blue
+
+    gSizeIndex[R] = 3;
+    gSizeIndex[L] = 1;
+  }else{
+    gColorIndex[R] = BLUE; //blue
+    gColorIndex[L] = WHITE;
+
+    gSizeIndex[R] = 1;
+    gSizeIndex[L] = 0;
+  }
+}
+
+function GermanFlag(beat){
+  gColorSkyIndex = BLACK;
+  gColorGroundIndex = BLACK;
+  
+  if (Math.trunc(beat/4) % 2){
+    gColorIndex[R] = BLACK;
+    gColorIndex[L] = RED; //blue
+
+    gSizeIndex[R] = 4;
+    gSizeIndex[L] = 2;
+  }else{
+    gColorIndex[R] = RED; //blue
+    gColorIndex[L] = YELLOW;
+
+    gSizeIndex[R] = 2;
+    gSizeIndex[L] = 0;
+  }
+}
+
+function GermanFlagFast(beat){
+  gColorSkyIndex = BLACK;
+  gColorGroundIndex = BLACK;
+  
+  gSizeIndex[R] = 2;
+  gSizeIndex[L] = 4;
+  if (beat % 2){
+    gColorIndex[R] = BLACK;
+  }else{
+    gColorIndex[R] = RED; 
+  }
+
+  if (beat % 8){
+    gColorIndex[L] = BLACK;
+  }else{
+    gColorIndex[L] = YELLOW; 
+  }
+
+}
+
+        
+
+    
+</script>
+</head>
+
+<body>
+  <a-scene
+  id="sky"
+  avatar-recorder avatar-replayer
+    renderer="colorManagement: true;"
+    cursor="rayOrigin: mouse"
+    raycaster="objects: [cube]" fog="color: #bc483e; near: 0; far: 65;"
+    background="color: blue"
+    >
+
+    <a-entity id="sky" cursor-listener
+    geometry="primitive: sphere; radius: 65;"
+    material="shader: skyGradient; colorTop: #353449; colorBottom: #BC483E; side: back"></a-entity>
+    
+    <!-- Hands -->
+
+    <a-entity  oculus-touch-controls="hand: left; model:true" id="hand-left" button-listener="hand:left;">
+      <a-entity light="type: point; color: #ffffff; intensity: 0.5; distance: 10; decay: 5;" position="0 0 0"></a-entity>
+      <a-entity id="glowstick-left-tip" position="0 0.15 -0.1" rotation="0 0 0" material="visible:true; shader: flat; color: green;" geometry="primitive: box; height: 0.005; width: 0.005; depth: 0.005"></a-entity>
+      <a-entity id="thumb-control-left" position="0 0.05 -0.01" rotation="40 0 0" material="visible:false; shader: flat; color: grey;" geometry="primitive: box; height: 0.03; width: 0.1; depth: 0.001"></a-entity>
+    </a-entity>
+
+    <a-entity  oculus-touch-controls="hand: right; model:true" id="hand-right"  button-listener="hand:right;">
+      <a-entity light="type: point; color: #ffffff; intensity: 0.5; distance: 10; decay: 5;" position="0 0 0"></a-entity>
+      <a-entity id="glowstick-right-tip" position="0 0.15 -0.1" rotation="0 0 0" material="visible:true; shader:flat; color: yellow;" geometry="primitive: box; height: 0.005; width: 0.005; depth: 0.005"></a-entity>
+      <a-entity id="thumb-control-right" position="0 0.05 -0.01" rotation="40 0 0" material="visible:false; shader: flat; color: grey;" geometry="primitive: box; height: 0.03; width: 0.1; depth: 0.001"></a-entity>
+    </a-entity>
+
+    <a-entity id="glowstick-left" position="0 0 0">
+      <a-entity id="glowstick-left-1" position="0 0 0" material="visible:false; color: purple;" geometry="primitive: box; height: 0.03; width: 0.03; depth: 0.03"></a-entity>
+      <a-entity id="glowstick-left-2" position="0 0.15 -0.1" rotation="0 0 0" material="visible:false; color: white;" geometry="primitive: box; height: 0.005; width: 0.005; depth: 0.005"></a-entity>
+    </a-entity>
+
+    <a-entity id="glowstick-right" position="0 0 0">
+      <a-entity id="glowstick-right-1" position="0 0 0" material="visible:false; color: purple;" geometry="primitive: box; height: 0.03; width: 0.03; depth: 0.03"></a-entity>
+      <a-entity id="glowstick-right-2" position="0 0.15 -0.1" rotation="0 0 0" material="visible:false; color: white;" geometry="primitive: box; height: 0.001; width: 0.001; depth: 0.001"></a-entity>
+    </a-entity>
+
+
+
+
+
+
+
+    <a-assets>
+      <a-asset-item id="ground" src="https://cdn.aframe.io/examples/tracked-controls/ground.glb"></a-asset-item>
+
+      <a-mixin id="cube"
+                geometry="primitive: box; height: 0.30; width: 0.30; depth: 0.30"
+                material="color: #EF2DFF;"></a-mixin>
+    </a-assets>
+
+
+
+
+
+  
+    <a-entity position="0 0 -0.5">
+
+      <a-entity id="marker"  class="cube" mixin="cube" position="0 1.95 0" material="color: #999999;visible:false;"></a-entity>
+
+      <!-- <a-plane id="ground" material="shader: flat;" color="#000" rotation="-90 0 0" height="10" width="10"></a-plane> -->
+      <a-entity ground ></a-entity>
+
+      <a-entity light="type: point; color: #f4f4f4; intensity: 0.1; distance: 0" position="-2.5 1.2 2.2"></a-entity>
+        <a-entity light="type: point; color: #f4f4f4; intensity: 0.1; distance: 0" position="-20 -7 -40"></a-entity>
+        <a-entity light="type: ambient; color: #f4f4f4; intensity: 0.25;" position="-8 10 -18"></a-entity>
+    </a-entity>
+
+
+
+
+
+    <a-entity position="0 1.6 2" camera look-controls wasd-controls>
+      <a-entity id="a-cursor" cursor="fuse: true; fuseTimeout: 500"
+        position="0 0 -1"
+        geometry="primitive: ring; radiusInner: 0.02; radiusOuter: 0.03"
+        material="color: black; shader: flat; visible:false;">
+      </a-entity>
+    </a-entity>
+
+  </a-scene>
+</body>
+</html>
