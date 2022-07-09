@@ -1,0 +1,1 @@
+Convert GLTF to GLB: https://sbtron.github.io/makeglb/

@@ -1,0 +1,11 @@
+Model Information:
+* title:	Easter Island Low Poly
+* source:	https://sketchfab.com/3d-models/easter-island-low-poly-a3dc85b7cbfd49de95ff21d4ea5b2c7f
+* author:	Johnnart_ (https://sketchfab.com/Johnnart_)
+
+Model License:
+* license type:	CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+* requirements:	Author must be credited. Commercial use is allowed.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "Easter Island Low Poly" (https://sketchfab.com/3d-models/easter-island-low-poly-a3dc85b7cbfd49de95ff21d4ea5b2c7f) by Johnnart_ (https://sketchfab.com/Johnnart_) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
