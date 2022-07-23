@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+
+    <title>Babylon.js sample code</title>
+
+    <!-- Babylon.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/dat-gui/0.6.2/dat.gui.min.js"></script>
+    <script src="https://assets.babylonjs.com/generated/Assets.js"></script>
+    <!-- <script src="https://preview.babylonjs.com/ammo.js"></script>
+    <script src="https://preview.babylonjs.com/cannon.js"></script>
+    <script src="https://preview.babylonjs.com/Oimo.js"></script>
+    <script src="https://preview.babylonjs.com/earcut.min.js"></script> -->
+    <script src="https://preview.babylonjs.com/babylon.js"></script>
+    <script src="https://preview.babylonjs.com/materialsLibrary/babylonjs.materials.min.js"></script>
+    <!-- <script src="https://preview.babylonjs.com/proceduralTexturesLibrary/babylonjs.proceduralTextures.min.js"></script> -->
+    <!-- <script src="https://preview.babylonjs.com/postProcessesLibrary/babylonjs.postProcess.min.js"></script> -->
+    <script src="https://preview.babylonjs.com/loaders/babylonjs.loaders.js"></script>
+    <!-- <script src="https://preview.babylonjs.com/serializers/babylonjs.serializers.min.js"></script> -->
+    <script src="https://preview.babylonjs.com/gui/babylon.gui.min.js"></script>
+    <script src="https://preview.babylonjs.com/inspector/babylon.inspector.bundle.js"></script>
+
+    <style>
+      html,
+      body {
+        overflow: hidden;
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        padding: 0;
+      }
+
+      #renderCanvas {
+        width: 100%;
+        height: 100%;
+        touch-action: none;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="renderCanvas"></canvas>
+    <script>
+      var canvas = document.getElementById("renderCanvas");
+
+      var startRenderLoop = function (engine, canvas) {
+        engine.runRenderLoop(function () {
+          if (sceneToRender && sceneToRender.activeCamera) {
+            sceneToRender.render();
+          }
+        });
+      };
+
+      var engine = null;
+      var scene = null;
+      var sceneToRender = null;
+      var createDefaultEngine = function () {
+        return new BABYLON.Engine(canvas, true, {
+          preserveDrawingBuffer: true,
+          stencil: true,
+          disableWebGL2Support: false,
+        });
+      };
+
+      var createScene = async function () {
+        // This creates a basic Babylon Scene object (non-mesh)
+        var scene = new BABYLON.Scene(engine);
+
+        // This creates and positions a free camera (non-mesh)
+        var camera = new BABYLON.FreeCamera(
+          "camera1",
+          new BABYLON.Vector3(0, 5, -10),
+          scene
+        );
+
+        // This targets the camera to scene origin
+        camera.setTarget(BABYLON.Vector3.Zero());
+
+        // This attaches the camera to the canvas
+        camera.attachControl(canvas, true);
+
+        // This creates a light, aiming 0,1,0 - to the sky (non-mesh)
+        var light = new BABYLON.HemisphericLight(
+          "light",
+          new BABYLON.Vector3(0, 1, 0),
+          scene
+        );
+
+        // Default intensity is 1. Let's dim the light a small amount
+        light.intensity = 0.7;
+
+        // Our built-in 'sphere' shape.
+        var sphere = BABYLON.MeshBuilder.CreateSphere(
+          "sphere",
+          { diameter: 1, segments: 32 },
+          scene
+        );
+
+        // Move the sphere upward 1/2 its height
+        sphere.position.y = 1;
+        scene.createDefaultEnvironment();
+
+        // var mpath = "models/"
+        // var model = "magnolia-lounge-scan.glb";
+
+        // var mpath = "../_shared/models/austrian_alps_schesaplana-gltf/"
+        // var model = "scene.gltf";
+
+        // var mpath = "../_shared/models/austrian-alps-schesaplana/source/"
+        // var model = "800004b1-0006-ff00-b63f-84710c7967bb.glb";
+
+        var mpath = "../_shared/models/";
+        var model = "muerren.glb";
+
+        // var mpath = "models/grand_canyon/"
+        // var model = "scene.gltf";
+
+        scene = await BABYLON.SceneLoader.AppendAsync(mpath, model);
+
+        // const loadError = function(scene, message,err){
+        //   console.log("load error:" + message)
+        // }
+        // const loadSuccess = function(scene){
+
+        //debugger;
+        //var mesh = scene.meshes[0];
+        var cat = scene.meshes[1];
+        let object = scene.getMeshByName("__root__");
+
+        let bounds = object.getHierarchyBoundingVectors();
+        console.log(bounds);
+
+        scene.activeCamera.position.x = bounds.max._x;
+        scene.activeCamera.position.y = bounds.max._y;
+        scene.activeCamera.position.z = bounds.max._z;
+
+        scene.activeCamera.setTarget(bounds.min);
+
+
+        // XR
+        //const xrHelper = await scene.createDefaultXRExperienceAsync();
+
+        // const environment = scene.createDefaultEnvironment({
+        //   ground: false,
+        // });
+        const xrHelper = await scene.createDefaultXRExperienceAsync({
+          // define floor meshes
+          // floorMeshes: [environment.ground]
+          floorMeshes: [null],
+          createSkybox: false,
+          createGround: false,
+        });
+
+        scene.registerBeforeRender(function () {
+          //Your code here
+          //orb.position.x += 0.05;
+          renderLoop++;
+
+          if (renderLoop ==1){
+            startHeight = scene.activeCamera.position._y;
+            console.log("startHeight: " + startHeight)
+          }
+          //console.log(renderLoop)
+          //header.text = "100%-" + renderLoop;
+
+          // var vel = new BABYLON.Vector3(0, 2, 0);
+          //var vel = scene.activeCamera
+
+          const MASS = 5.0;
+          const TOTAL = 11.01;
+          function conservationOfEnergy(height){
+
+              var PE = height * 0.1;
+              var energy = TOTAL - PE;
+              if (energy < 0.0001){
+                energy = 0.0001;
+              }
+              var velocity = Math.sqrt( (2 * (energy) / MASS ));
+              return velocity;
+          }
+
+          function getVelocityFromHeight(height){
+            height -= startHeight;
+
+            height = 100.0 + height;
+            let vel = conservationOfEnergy(height);
+            return vel;
+          }
+
+          var forward = new BABYLON.Vector3(0, 0, 1);		
+	        var direction = scene.activeCamera.getDirection(forward);
+          direction.normalize();
+
+          var height = scene.activeCamera.position._y;
+          var vel = getVelocityFromHeight(height);
+          //var vel = direction;
+
+          var increment= direction.scale(vel)
+
+          //console.log("vel: " + vel)
+          //console.log("height: " + height)
+          //console.log("maxZ:" + scene.activeCamera.maxZ)
+          scene.activeCamera.maxZ = 200000
+
+          scene.activeCamera.position.addInPlace(increment)
+
+        });
+
+        return scene;
+      };
+
+      var renderLoop = 0;
+
+      window.initFunction = async function () {
+        var asyncEngineCreation = async function () {
+          try {
+            return createDefaultEngine();
+          } catch (e) {
+            console.log(
+              "the available createEngine function failed. Creating the default engine instead"
+            );
+            return createDefaultEngine();
+          }
+        };
+
+        window.engine = await asyncEngineCreation();
+
+        if (!engine) throw "engine should not be null.";
+
+        startRenderLoop(engine, canvas);
+
+        window.scene = createScene();
+      };
+
+      initFunction().then(() => {
+        scene.then((returnedScene) => {
+          sceneToRender = returnedScene;
+        });
+      });
+
+      // Resize
+      window.addEventListener("resize", function () {
+        engine.resize();
+      });
+
+      var startHeight = 0;
+    </script>
+  </body>
+</html>

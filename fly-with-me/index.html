@@ -1,0 +1,288 @@
+<!doctype html>
+
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+
+  <!-- <script src="https://aframe.io/releases/0.9.2/aframe.min.js"></script> -->
+  <script src="https://aframe.io/releases/1.3.0/aframe.min.js"></script>
+
+  <script src="https://unpkg.com/aframe-log-component/dist/aframe-log-component.min.js"></script>
+
+  <!-- <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/1.4.5/socket.io.min.js"></script>
+  <script src="easyrtc.js"></script> -->
+  <!-- <script src="https://unpkg.com/networked-aframe/dist/networked-aframe.min.js"></script> -->
+
+  <script>
+
+    var MOTION_SPEED = 1;
+
+    var FLY = true;
+
+
+function render() {
+  //t += 0.01;
+  //requestAnimationFrame(render);
+  //cylinder.setAttribute('position', '3 '+(Math.sin(t*2)+1)+' 0');
+  //moveInCamDirection();
+
+}
+
+var camera;
+var rig;
+
+window.onload = function() {
+  //initMenus();
+  camera = document.querySelector("#camera")
+  rig = document.querySelector("#rig")
+
+
+
+  var models = document.getElementsByClassName("model");
+
+ 
+  for (var i = 0; i < models.length; ++i) {
+    //models[i].addEventListener(....)
+    console.log('model found');
+    model = models[i];
+    
+    model.addEventListener("model-loaded",()=>{
+      console.log("LOADED");
+      console.log(model.object3D)
+      object = model.object3D
+      //const box = new THREE.Box3();
+      //const box = new Box3();
+        const box = new THREE.Box3().setFromObject(object);
+        console.log("max:" + JSON.stringify(box.max))
+        const size = box.getSize(new THREE.Vector3()).length();
+        const center = box.getCenter(new THREE.Vector3());
+
+        //Move it
+        console.log(center)
+        rig.object3D.position.copy(center)
+        
+        rig.object3D.position.copy(box.max)
+        console.log("Rig: position:" + rig.object3D.position)
+
+    })
+  }
+
+}
+
+
+/*
+PE = 0.5 mass velocity squared.
+v = SQRT(2 * PE / KG)
+v = SQRT(2( TOTAL - PE) m)
+*/
+
+const MASS = 1.0;
+const TOTAL = 1.01;
+function conservationOfEnergy(height){
+
+    var PE = height * 0.01;
+    var energy = TOTAL - PE;
+    if (energy < 0.0001){
+      energy = 0.0001;
+    }
+    var velocity = Math.sqrt( (2 * (energy) / MASS ));
+    return velocity;
+}
+
+function getVelocityFromHeight(height){
+  height = 100.0 + height;
+  let vel = conservationOfEnergy(height);
+  return vel;
+}
+
+
+function moveInCamDirection(){
+
+  const direction = new THREE.Vector3();
+
+  camera.object3D.getWorldDirection(direction);
+  // if (direction){
+  //   AFRAME.log('Mover dir1. x:'+ direction.x.toFixed(2) + " y:" + direction.y.toFixed(2) + " z:" + direction.z.toFixed(2));
+  // }
+  var height = rig.object3D.position.y;
+  var vel = getVelocityFromHeight(height);
+
+  direction.multiplyScalar(-vel)
+  // if (direction){
+  //   AFRAME.log('Mover dir2. x:'+ direction.x.toFixed(2) + " y:" + direction.y.toFixed(2) + " z:" + direction.z.toFixed(2));
+  // }
+
+  rig.object3D.position.add(direction);
+  let rig2 = new THREE.Vector3();
+  rig2.copy(rig.object3D.position)
+  //AFRAME.log('Mover rig2. x:'+ rig2.x.toFixed(2) + " y:" + rig2.y.toFixed(2) + " z:" + rig2.z.toFixed(2));
+  //AFRAME.log('Mover Done. h:'+ height + " v:" + vel);
+}
+
+AFRAME.registerComponent('rotation-reader', {
+  /**
+   * We use IIFE (immediately-invoked function expression) to only allocate one
+   * vector or euler and not re-create on every tick to save memory.
+   */
+  tick: (function () {
+    if (FLY){
+        moveInCamDirection();
+    }
+
+
+
+    // var position = new THREE.Vector3();
+    // var rotation = new THREE.Euler();
+    //
+    // return function () {
+    //   this.el.object3D.getWorldPosition(position);
+    //   this.el.object3D.getWorldRotation(rotation);
+    //   // position and rotation now contain vector and euler in world space.
+    // };
+  })
+});
+
+AFRAME.registerComponent("click-mover", {
+init: function() {
+  AFRAME.log('init Mover.');
+
+  window.addEventListener("keydown", (e) => {
+    //if (e.code === "KeyR") {
+       moveInCamDirection()
+    // }
+   })
+ }
+})
+
+// AFRAME.registerComponent('trigger-mover', {
+//   init: function () {
+//     AFRAME.log('init Trigger Mover.');
+//     var el = this.el;
+//     el.addEventListener('triggerdown', function (evt) {
+//       moveInCamDirection()
+//       render();
+//     });
+//   }
+// });
+
+
+</script>
+</head>
+
+<body>
+  <a-scene networked-scene="
+  app: myApp;
+  room: room1;
+  debug: true;
+">
+
+  <a-assets>
+    <a-asset-item id="muerren" src="../_shared/models/muerren.glb" ></a-asset-item>
+    <!-- <a-asset-item id="chilchbalm-low" src="../_shared/models/chilchbalm-low.glb" ></a-asset-item> -->
+    <!-- <a-asset-item id="eiger" src="../_shared/models/eiger_with_buildings/scene.gltf" ></a-asset-item> -->
+    <!-- <a-asset-item id="mountains" src="../_shared/models/austrian_alps_schesaplana-gltf/scene.gltf" ></a-asset-item> -->
+    <!-- <a-asset-item id="canyon" src="../_shared/models/grand_canyon/scene.gltf" ></a-asset-item> -->
+    <!-- <a-asset-item id="village" src="../_shared/models/village/scene.gltf" ></a-asset-item> -->
+
+  <!-- Avatar -->
+  <template id="avatar-template">
+
+    <a-entity class="avatar">
+      <a-sphere class="head"
+        color="#990000"
+        scale="0.1 0.1 0.1"
+      ></a-sphere>
+    </a-entity>
+  </template>
+
+  <template id="face-template">
+
+
+
+    <a-entity class="face"
+        position="0 0.05 0"
+      >
+      <a-sphere class="head-2"
+        color="#5985ff"
+        scale="0.45 0.5 0.4"
+      ></a-sphere>
+
+
+      <a-sphere class="eye"
+        color="#efefef"
+        position="0.16 0.1 -0.35"
+        scale="0.12 0.12 0.12"
+      >
+        <a-sphere class="pupil"
+          color="#000"
+          position="0 0 -1"
+          scale="0.2 0.2 0.2"
+        ></a-sphere>
+      </a-sphere>
+      <a-sphere class="eye"
+        color="#efefef"
+        position="-0.16 0.1 -0.35"
+        scale="0.12 0.12 0.12"
+      >
+        <a-sphere class="pupil"
+          color="#000"
+          position="0 0 -1"
+          scale="0.2 0.2 0.2"
+        ></a-sphere>
+      </a-sphere>
+    </a-entity>
+  </template>
+
+  <template id="simple">
+    <a-sphere></a-sphere>
+  </template>
+
+  </a-assets>
+
+
+
+  <!-- <a-entity gltf-model="#canyon" position="1350 -160 0" scale="100 100 100"></a-entity> -->
+  <!-- <a-entity gltf-model="#mountains" class="model" position="-1024988 -5678 5642065" scale="10 10 10"></a-entity> -->
+  <!-- <a-entity gltf-model="#eiger" class="model" position="-9046873 -80000 58635805" scale="10 10 10"></a-entity> -->
+  <a-entity gltf-model="#muerren" class="model" position="-9046873 -80000 58635805" scale="10 10 10"></a-entity>
+  <!-- <a-entity gltf-model="#chilchbalm-low" class="model" position="-9046873 -80000 58635805" scale="10 10 10"></a-entity> -->
+  
+  
+  <!-- <a-entity gltf-model="#village" position="0 -200 0" scale="10 10 10"></a-entity> -->
+
+  <!-- <a-entity gltf-model="#eiger" class="model" position="-9046873 -80000 58635805" scale="10 10 10"></a-entity> -->
+  
+
+<a-entity id="rig"  position="-2 0 0" rotation="0 0 0"
+
+>
+
+  <a-entity
+    camera position="0 1.3 0" wasd-controls look-controls
+    id="camera"
+   
+    click-mover rotation-reader
+    ></a-entity>
+
+  <a-entity oculus-touch-controls="hand: right" trigger-mover></a-entity>
+  <a-entity oculus-go-controls  trigger-mover></a-entity>
+
+</a-entity>
+<!--
+  <a-entity id="rig"  position="-2 0 0" rotation="0 0 0">
+    <a-entity id="camera" camera="far:10000;" look-controls position="0 1.6 0"  click-mover rotation-reader>
+
+      <a-entity log position="-0.5 0 -1.5" geometry="primitive: plane"
+      material="color: #111" text="color: lightgreen" visible="false"></a-entity>
+    </a-entity>
+
+    <a-entity oculus-touch-controls="hand: right" trigger-mover></a-entity>
+
+  </a-entity>
+-->
+
+</a-scene>
+
+</body>
+
+</html>

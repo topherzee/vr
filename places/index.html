@@ -101,12 +101,72 @@
         sphere.position.y = 1;
         scene.createDefaultEnvironment();
 
-        BABYLON.SceneLoader.Append("models/", "magnolia-lounge-scan.glb", scene, 
+        // var mpath = "models/"
+        // var model = "magnolia-lounge-scan.glb";
+
+        // var mpath = "../_shared/models/austrian_alps_schesaplana-gltf/"
+        // var model = "scene.gltf";
+        
+        // var mpath = "../_shared/models/austrian-alps-schesaplana/source/"
+        // var model = "800004b1-0006-ff00-b63f-84710c7967bb.glb";
+        
+        var mpath = "../_shared/models/"
+        var model = "muerren.glb";
+        
+
+        // var mpath = "models/grand_canyon/"
+        // var model = "scene.gltf";
+        
+        BABYLON.SceneLoader.Append(mpath, model , scene, 
             function (scene) {
 
                     //debugger;
             //var mesh = scene.meshes[0];
             var cat = scene.meshes[1];
+            let object = scene.getMeshByName("__root__");
+
+            let bounds = object.getHierarchyBoundingVectors()
+            console.log(bounds)
+            // does not work.. I dont know why
+            // object.position.x = - bounds.max._x
+            // object.position.y = - bounds.max._y
+            // object.position.z = - bounds.max._z
+
+            scene.activeCamera.position.x = bounds.max._x
+            scene.activeCamera.position.y = - bounds.max._y
+            scene.activeCamera.position.z = bounds.max._z
+           
+
+
+
+            //const box = new Box3();
+
+            //const box = new Box3().setFromObject(object);
+          // const size = box.getSize(new Vector3()).length();
+          // const center = box.getCenter(new Vector3());
+          // debugger;
+            
+            //place.position.x = -15
+            //place.position.y = -5
+            //place.setPivotPoint(new BABYLON.Vector3(-7, 0, 0));
+
+
+        //     1086991.625,
+        // 5371.5546875,
+        // -5943689.5
+        // place.position.x = -1086991
+        // place.position.y = -5371
+        // place.position.z = 5943689
+
+
+            //let s = 10;
+            //place.scale.set(s, s, s )
+            //place.scale.set(new BABYLON.Vector3(s, s, s))
+          //  place.scale.set(new BABYLON.Vector3(10,10,10))
+          //mesh.scaling = new BABYLON.Vector3(0.005, 0.005, 0.005)
+           
+            
+            //cat.position.x = -10
             
             // Create a default arc rotate camera and light.
             //scene.createDefaultCameraOrLight(true, true, true);
@@ -117,17 +177,24 @@
             // scene.activeCamera.alpha = -0.012;
             // scene.activeCamera.beta = 1.64;
             // scene.activeCamera.radius = 19;
+
+            //scene.debugLayer.show();
         });
 
 
         // XR
         //const xrHelper = await scene.createDefaultXRExperienceAsync();
 
-        const environment = scene.createDefaultEnvironment();
+        // const environment = scene.createDefaultEnvironment({
+        //   ground: false,
+        // });
         const xrHelper = await scene.createDefaultXRExperienceAsync({
-    // define floor meshes
-    floorMeshes: [environment.ground]
-});
+            // define floor meshes
+            // floorMeshes: [environment.ground]
+            floorMeshes: [null],
+            createSkybox: false,
+            createGround: false,
+        });
 
 
         return scene;
@@ -147,9 +214,12 @@
         window.engine = await asyncEngineCreation();
 
         if (!engine) throw "engine should not be null.";
+        
         startRenderLoop(engine, canvas);
+
         window.scene = createScene();
       };
+
       initFunction().then(() => {
         scene.then((returnedScene) => {
           sceneToRender = returnedScene;
