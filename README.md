@@ -20,8 +20,6 @@ Add texture /shader to water surface.
 
 ## Run Locally
 
-
-
 https://127.0.0.1:8080/?PLAY
 USB Debugging:
 https://developer.oculus.com/documentation/web/browser-remote-debugging/#usb-debugging-on-oculus-quest-without-odh
